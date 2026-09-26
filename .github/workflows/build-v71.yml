@@ -54,10 +54,11 @@ jobs:
           gradle --no-daemon assembleDebug
           find app/build/outputs/apk -type f -name "*.apk" -print
 
-                - name: Upload V7.1 APK artifact
+      - name: Upload V7.1 APK artifact
+      - name: Upload V7.1 APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: My-Star-V7.1-side-install
+        name: My-Star-V7.1-side-install
           path: build-v71-project/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 7
