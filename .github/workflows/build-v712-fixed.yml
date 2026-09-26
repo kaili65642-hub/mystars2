@@ -1,0 +1,91 @@
+name: Build My Star V7.1.2 APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Find and extract V7.1.2 project
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP_FILE=""
+          while IFS= read -r -d '' f; do
+            if unzip -l "$f" | grep -q 'app/build.gradle.kts' && unzip -l "$f" | grep -q 'app/src/main/assets/web/index.html'; then
+              if unzip -l "$f" | grep -q 'app/src/main/java/com/mystar/app/v712/MainActivity.java'; then
+                ZIP_FILE="$f"
+                break
+              fi
+            fi
+          done < <(find . -maxdepth 3 -type f -name '*.zip' -print0)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: V7.1.2 Android project ZIP was not found."
+            echo "ZIP files currently in the repository:"
+            find . -maxdepth 3 -type f -name '*.zip' -print
+            exit 1
+          fi
+
+          echo "Using project: $ZIP_FILE"
+          rm -rf v712-project
+          mkdir v712-project
+          unzip -q "$ZIP_FILE" -d v712-project
+
+          # The ZIP is expected to be a clean Android project at its root.
+          # Also support a single top-level folder, just in case.
+          if [ ! -f v712-project/settings.gradle.kts ]; then
+            TOP_DIR="$(find v712-project -mindepth 1 -maxdepth 1 -type d | head -n 1 || true)"
+            if [ -n "$TOP_DIR" ] && [ -f "$TOP_DIR/settings.gradle.kts" ]; then
+              shopt -s dotglob
+              mv "$TOP_DIR"/* v712-project/
+              shopt -u dotglob
+            fi
+          fi
+
+          test -f v712-project/settings.gradle.kts
+          test -f v712-project/app/build.gradle.kts
+          test -f v712-project/app/src/main/AndroidManifest.xml
+          test -f v712-project/app/src/main/assets/web/index.html
+          grep -q 'applicationId = "com.mystar.app.v712"' v712-project/app/build.gradle.kts
+          grep -q 'namespace = "com.mystar.app.v712"' v712-project/app/build.gradle.kts
+          grep -q 'package com.mystar.app.v712;' v712-project/app/src/main/java/com/mystar/app/v712/MainActivity.java
+          grep -q 'publish_shop_product' v712-project/app/src/main/assets/web/index.html
+
+      - name: Build debug APK
+        working-directory: v712-project
+        run: gradle --no-daemon assembleDebug
+
+      - name: Verify APK package identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='v712-project/app/build/outputs/apk/debug/app-debug.apk'
+          test -f "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -m1 "package: name='com.mystar.app.v712'"
+
+      - name: Upload V7.1.2 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: My-Star-V7.1.2-debug
+          path: v712-project/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
