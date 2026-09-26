@@ -1,0 +1,77 @@
+name: Build My Star V7.1.3 Independent APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Prepare V7.1.3 project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -f settings.gradle.kts ] && [ -f app/build.gradle.kts ]; then
+            PROJECT_DIR="."
+          else
+            ZIP_FILE="$(find . -maxdepth 2 -type f -name 'My_Star_V7.1.3*zip' | head -n 1)"
+            test -n "$ZIP_FILE"
+            rm -rf v713-project
+            mkdir -p v713-project
+            unzip -q "$ZIP_FILE" -d v713-project
+            PROJECT_DIR="v713-project"
+          fi
+
+          test -f "$PROJECT_DIR/settings.gradle.kts"
+          test -f "$PROJECT_DIR/build.gradle.kts"
+          test -f "$PROJECT_DIR/app/build.gradle.kts"
+          test -f "$PROJECT_DIR/app/src/main/assets/web/index.html"
+
+          grep -q 'versionName = "7.1.3"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'versionCode = 13' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'applicationId = "com.mystar.app.v713"' "$PROJECT_DIR/app/build.gradle.kts"
+          grep -q 'list_shop_orders' "$PROJECT_DIR/app/src/main/assets/web/index.html"
+          grep -q 'update_shop_order' "$PROJECT_DIR/app/src/main/assets/web/index.html"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Using project: $PROJECT_DIR"
+
+      - name: Build APK
+        run: gradle --no-daemon -p "$PROJECT_DIR" assembleDebug
+
+      - name: Verify APK identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -m1 "package: name='com.mystar.app.v713'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -m1 "versionName='7.1.3'"
+          ls -lh "$APK"
+
+      - name: Upload V7.1.3 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: My-Star-V7.1.3-Independent-APK
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
