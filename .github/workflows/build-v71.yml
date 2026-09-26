@@ -26,9 +26,30 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Extract the V7.1 side-install project
+      - name: Extract V7.1 side-install project
         shell: bash
         run: |
           set -e
           ZIP_FILE="My_Star_V7.1_商城连接版_侧装迁移版.zip"
           test -f "$ZIP_FILE"
+          rm -rf build-v71-project
+          mkdir -p build-v71-project
+          unzip -q "$ZIP_FILE" -d build-v71-project
+
+          # Handle a possible single top-level folder inside the ZIP.
+          if [ ! -f build-v71-project/settings.gradle.kts ] && [ ! -f build-v71-project/settings.gradle ]; then
+            TOP_DIR="$(find build-v71-project -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+            if [ -n "$TOP_DIR" ] && [ -f "$TOP_DIR/app/build.gradle.kts" -o -f "$TOP_DIR/app/build.gradle" ]; then
+              mv "$TOP_DIR"/* "$TOP_DIR"/.[!.]* build-v71-project/ 2>/dev/null || true
+            fi
+          fi
+
+          test -f build-v71-project/app/build.gradle.kts || test -f build-v71-project/app/build.gradle
+
+      - name: Build V7.1 APK
+        working-directory: build-v71-project
+        shell: bash
+        run: |
+          set -e
+          gradle --no-daemon assembleDebug
+          find app/build/outputs/apk -type f -name "*.apk" -print
