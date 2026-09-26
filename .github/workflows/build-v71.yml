@@ -1,4 +1,5 @@
-name: Build My Star V7.1 APK
+
+name: Build My Star V7.1 Side Install APK
 
 on:
   workflow_dispatch:
@@ -11,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout project
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -25,27 +26,9 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Unzip V7.1 project
+      - name: Extract the V7.1 side-install project
         shell: bash
         run: |
           set -e
-          ZIP_FILE='My_Star_V7.1_商城连接版_Android_Project_正确项目版.zip'
+          ZIP_FILE="My_Star_V7.1_商城连接版_侧装迁移版.zip"
           test -f "$ZIP_FILE"
-          rm -rf v71-project
-          mkdir v71-project
-          unzip -q "$ZIP_FILE" -d v71-project
-          test -f v71-project/settings.gradle.kts
-          test -f v71-project/app/build.gradle.kts
-          test -f v71-project/app/src/main/assets/web/index.html
-
-      - name: Build debug APK
-        working-directory: v71-project
-        shell: bash
-        run: gradle assembleDebug --no-daemon
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: My-Star-V7.1-debug
-          path: v71-project/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
